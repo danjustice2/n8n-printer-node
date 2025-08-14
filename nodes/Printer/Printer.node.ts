@@ -1,142 +1,210 @@
-import { IExecuteFunctions } from 'n8n-core';
-import { INodeExecutionData, INodeType, INodeTypeDescription, INodeTypeBaseDescription, ILoadOptionsFunctions, INodeListSearchResult } from 'n8n-workflow';
+import {
+	IExecuteFunctions,
+	INodeExecutionData,
+	INodeType,
+	INodeTypeDescription,
+	ILoadOptionsFunctions,
+	INodeListSearchResult,
+	NodeConnectionType,
+	NodeOperationError,
+} from 'n8n-workflow';
+
 import * as child_process from 'child_process';
 import * as util from 'util';
 
 export class Printer implements INodeType {
-    description: INodeTypeDescription;
-
-    constructor(baseDescription: INodeTypeBaseDescription) {
-        this.description = {
-                ...baseDescription,
+	description: INodeTypeDescription = {
 			displayName: 'Printer',
 			name: 'printer',
-			icon: 'file:printer.svg', // the icon come from here : https://iconduck.com/icons/22273/print
+			icon: 'file:printer.svg',
 			group: ['transform'],
 			version: 1,
-			description: 'Printer node works with CUPS',
+			description: 'Sends a binary file to a CUPS printer',
 			defaults: {
-				name: 'printer',
+					name: 'Printer',
 			},
-			inputs: ['main'],
-			outputs: ['main'],
+			inputs: [NodeConnectionType.Main],
+			outputs: [NodeConnectionType.Main],
 			properties: [
-				{
-  					displayName: 'This node required "cups-client" package.',
-  					name: 'notice',
-  					type: 'notice',
-  					default: '',
-				},
-				{
-  					displayName: `You might be encountering the 'Error - The printer or class does not exist' issue due to your network configuration (e.g., not being in the same LAN). The reverse resolution name of the printer needs to be added to CUPS (ServerName in /etc/cups/client.conf). Please follow the instructions in the README at https://github.com/DtNeo/n8n-printer-node.`,
-  					name: 'notice',
-  					type: 'notice',
-  					default: '',
-				},
-				{
-					displayName: 'CUPS IP (ServerName)',
-					name: 'servername',
-					default: 'servername',
-					description: 'Enter the IP address of the CUPS server that handles the printer.Example: 192.168.1.100',
-					type: 'string',
-					required: true,
-				},
-				{
-					displayName: 'File',
-					name: 'file',
-					default: 'file',
-					description: 'Add the file to print /home/node/n8n/data/textfile.txt',
-					type: 'string',
-					required: true,
-				},
-				{
-					displayName: 'Quantity',
-					name: 'quantity',
-					default: 1,
-					description: 'Specify a quantity',
-					type: 'number',
-					required: true,
-					typeOptions: {
-						maxValue: 99,
-						minValue: 1,
-						numberStepSize: 1,
+					{
+							displayName: 'This node requires the "cups-client" package to be installed in your n8n environment.',
+							name: 'noticeCups',
+							type: 'notice',
+							default: '',
 					},
-				},
-                {
-                    displayName: 'Page Range',
-                    name: 'pageRange',
-                    type: 'string',
-                    required: false,
-                    default: '',
-                    description: 'Enter the page range to print (e.g., "1-5" for pages 1 to 5). Empty for all pages',
-                },
-				{
-					displayName: 'Select the Printer Discover',
-					name: 'printers',
-					type: 'resourceLocator',
-					default: { mode: 'string', value: 'HP_LaserJet' },
-					description: "First, you need a CUPS IP for discovery. Select a printer. If no printer is available, share a printer via your CUPS Manager at IP-CUPS:631.",
-					modes: [
-						{
-							displayName: 'Address Printer',
-							name: 'addressPrinter',
+					{
+							displayName: `If you encounter 'The printer or class does not exist' error, you may need to configure your CUPS client. See the README for instructions.`,
+							name: 'noticeServerName',
+							type: 'notice',
+							default: '',
+					},
+					{
+							displayName: 'CUPS Server IP',
+							name: 'serverName',
 							type: 'string',
-							hint: 'Enter the exact name of your printer. No space in the name',
-						},
-						{
-							displayName: 'List of Printer Discover',
-							name: 'list',
-							type: 'list',
-							typeOptions: {
-								searchListMethod: 'searchPrinters',
-								searchable: false,
-								searchFilterRequired: false
-							}
-						},
-					]
-				},
+							required: true,
+							default: '192.168.1.100',
+							description: 'The IP address of the CUPS server that manages the printer',
+					},
+					{
+							displayName: 'Select Printer',
+							name: 'printer',
+							type: 'resourceLocator',
+							default: { mode: 'list', value: '' },
+							description: 'Select a printer from the list discovered on your CUPS server',
+							modes: [
+									{
+											displayName: 'List',
+											name: 'list',
+											type: 'list',
+											typeOptions: {
+													searchListMethod: 'searchPrinters',
+													searchable: true,
+											}
+									},
+									{
+											displayName: 'Name',
+											name: 'name',
+											type: 'string',
+											hint: 'Enter the exact name of your printer queue (e.g., HP_LaserJet_Pro)',
+									},
+							]
+					},
+					{
+							displayName: 'Binary Property',
+							name: 'binaryPropertyName',
+							type: 'string',
+							default: 'data',
+							required: true,
+							description: 'Name of the binary property which contains the file to print',
+					},
+					{
+							displayName: 'Options',
+							name: 'options',
+							type: 'collection',
+							placeholder: 'Add Option',
+							default: {},
+							options: [
+									{
+											displayName: 'Quantity',
+											name: 'quantity',
+											type: 'number',
+											typeOptions: {
+													minValue: 1,
+											},
+											default: 1,
+											description: 'Number of copies to print',
+									},
+									{
+											displayName: 'Page Range',
+											name: 'pageRange',
+											type: 'string',
+											default: '',
+											placeholder: '1-5,8,10-12',
+											description: 'Specify which pages to print (e.g., 1-5, 8, 10-12)',
+									},
+									{
+											displayName: 'Advanced CUPS Options',
+											name: 'advancedOptions',
+											type: 'json',
+											default: '',
+											placeholder: '{\n    "media": "A4",\n    "sides": "two-sided-long-edge"\n}',
+											description: 'Enter a JSON object of advanced CUPS options. Each key-value pair will be converted to a `-o key=value` argument.',
+											typeOptions: {
+													alwaysOpen: true,
+											}
+									},
+							],
+					},
 			],
-		};
-	}
-	
-	methods = {
-	    listSearch: {
-	        async searchPrinters(this: ILoadOptionsFunctions): Promise<INodeListSearchResult> {
-		            const serverName = this.getNodeParameter('servername') as string;
-		            const exec = util.promisify(child_process.exec);
-		            const command = `lpstat -h ${serverName}:631 -p`;
-		            const { stdout } = await exec(command);
-
-		            const searchResults = stdout
-		                .split('\n')
-		                .filter(line => line.startsWith('printer '))
-		                .map(line => line.split(' ')[1]);
-		            return { results: searchResults.map(name => ({
-		            	name,
-		            	value: name
-		            }))
-		        };
-	        },
-	    }
 	};
 
+	methods = {
+			listSearch: {
+					async searchPrinters(this: ILoadOptionsFunctions): Promise<INodeListSearchResult> {
+							try {
+									const serverName = this.getNodeParameter('serverName') as string;
+									if (!serverName) { return { results: [{ name: 'Please Enter a CUPS Server IP First', value: '' }] }; }
+									const exec = util.promisify(child_process.exec);
+									const command = `lpstat -h ${serverName}:631 -p | awk '{print $2}'`;
+									const { stdout } = await exec(command);
+									const printerNames = stdout.trim().split('\n').filter((name: string) => name);
+									if (printerNames.length === 0) { return { results: [{ name: 'No Printers Found on Server', value: '' }] }; }
+									return { results: printerNames.map((name: string) => ({ name, value: name })) };
+							} catch (error) {
+									return { results: [ { name: `Error discovering printers: ${(error as Error).message.split('\n')[0]}`, value: '' } ] };
+							}
+					},
+			}
+	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const exec = util.promisify(child_process.exec);
-		let responseData: any;
+			const items = this.getInputData();
+			const returnData: INodeExecutionData[] = [];
 
-		const printer = this.getNodeParameter('printers', 0, undefined, {extractValue: true}) as string;
-		const file = this.getNodeParameter('file', 0) as string;
-		const serverName = this.getNodeParameter('servername', 0) as string;
-		const quantity = this.getNodeParameter('quantity', 0) as number;
-		const pageRange = this.getNodeParameter('pageRange', 0) as string;
-		const pageRangeOption = pageRange ? `-P ${pageRange}` : '';
+			for (let i = 0; i < items.length; i++) {
+					try {
+							const printer = this.getNodeParameter('printer', i, '', { extractValue: true }) as string;
+							const serverName = this.getNodeParameter('serverName', i) as string;
+							const options = this.getNodeParameter('options', i, {}) as { quantity?: number; pageRange?: string; advancedOptions?: string; };
+							const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i, 'data') as string;
 
-		const command = `lp -d ${printer} -h ${serverName}:631 -n ${quantity} ${pageRangeOption} ${file}`;
-		const { stdout } = await exec(command);
+							const fileBuffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
 
-		responseData = { success: true, output: stdout };
+							const args = [ '-d', printer, '-h', `${serverName}:631` ];
 
-		return [this.helpers.returnJsonArray(responseData)];
+							if (options.quantity && options.quantity > 0) {
+									args.push('-n', options.quantity.toString());
+							}
+							if (options.pageRange) {
+									args.push('-o', `page-ranges=${options.pageRange}`);
+							}
+
+							if (options.advancedOptions) {
+									try {
+											const advancedOpts = JSON.parse(options.advancedOptions);
+											for (const key in advancedOpts) {
+													if (Object.prototype.hasOwnProperty.call(advancedOpts, key)) {
+															args.push('-o', `${key}=${advancedOpts[key]}`);
+													}
+											}
+									} catch (e) {
+										throw new NodeOperationError(this.getNode(), `Advanced CUPS Options field does not contain valid JSON: ${(e as Error).message}`);
+									}
+							}
+
+							const lpProcess = child_process.spawn('lp', args);
+
+							lpProcess.stdin.write(fileBuffer);
+							lpProcess.stdin.end();
+
+							let stdout = '';
+							let stderr = '';
+
+							lpProcess.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+							lpProcess.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+							await new Promise<void>((resolve, reject) => {
+									lpProcess.on('close', (code: number | null) => {
+											if (code === 0) {
+													returnData.push({ json: { success: true, output: stdout.trim() }, pairedItem: { item: i } });
+													resolve();
+											} else {
+													reject(new Error(`Print command failed with code ${code}: ${stderr.trim()}`));
+											}
+									});
+									lpProcess.on('error', (err: Error) => reject(err));
+							});
+
+					} catch (error) {
+							if (this.continueOnFail()) {
+									returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
+									continue;
+							}
+							throw error;
+					}
+			}
+
+			return [this.helpers.returnJsonArray(returnData)];
 	}
 }
