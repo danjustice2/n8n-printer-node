@@ -50,6 +50,27 @@ export class Printer implements INodeType {
 					required: true,
 				},
 				{
+					displayName: 'Quantity',
+					name: 'quantity',
+					default: 1,
+					description: 'Specify a quantity',
+					type: 'number',
+					required: true,
+					typeOptions: {
+						maxValue: 99,
+						minValue: 1,
+						numberStepSize: 1,
+					},
+				},
+                {
+                    displayName: 'Page Range',
+                    name: 'pageRange',
+                    type: 'string',
+                    required: false,
+                    default: '',
+                    description: 'Enter the page range to print (e.g., "1-5" for pages 1 to 5). Empty for all pages',
+                },
+				{
 					displayName: 'Select the Printer Discover',
 					name: 'printers',
 					type: 'resourceLocator',
@@ -102,16 +123,16 @@ export class Printer implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const exec = util.promisify(child_process.exec);
-		let printer: string;
-		let file: string;
-		let serverName: string;
 		let responseData: any;
 
-		printer = this.getNodeParameter('printers', 0, undefined, {extractValue: true}) as string;
-		file = this.getNodeParameter('file', 0) as string;
-		serverName = this.getNodeParameter('servername', 0) as string;
+		const printer = this.getNodeParameter('printers', 0, undefined, {extractValue: true}) as string;
+		const file = this.getNodeParameter('file', 0) as string;
+		const serverName = this.getNodeParameter('servername', 0) as string;
+		const quantity = this.getNodeParameter('quantity', 0) as number;
+		const pageRange = this.getNodeParameter('pageRange', 0) as string;
+		const pageRangeOption = pageRange ? `-P ${pageRange}` : '';
 
-		const command = `lp -d ${printer} -h ${serverName}:631 ${file}`;
+		const command = `lp -d ${printer} -h ${serverName}:631 -n ${quantity} ${pageRangeOption} ${file}`;
 		const { stdout } = await exec(command);
 
 		responseData = { success: true, output: stdout };

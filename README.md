@@ -27,3 +27,8 @@ RUN mkdir -p /etc/cups && \
 ## License
 
 [MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+
+## Release
+
+V2: 
+- quantity
