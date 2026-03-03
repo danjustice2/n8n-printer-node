@@ -33,7 +33,8 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "nodes": [
-      "dist/nodes/Printer/Printer.node.js"
+      "dist/nodes/Printer/Printer.node.js",
+      "dist/nodes/Scanner/Scanner.node.js"
     ]
   },
   "devDependencies": {
