@@ -5,7 +5,6 @@ import {
 	INodeTypeDescription,
 	ILoadOptionsFunctions,
 	INodeListSearchResult,
-	NodeConnectionType,
 	NodeOperationError,
 } from 'n8n-workflow';
 
@@ -23,8 +22,8 @@ export class Printer implements INodeType {
 			defaults: {
 					name: 'Printer',
 			},
-			inputs: [NodeConnectionType.Main],
-			outputs: [NodeConnectionType.Main],
+			inputs: ['main'],
+			outputs: ['main'],
 			properties: [
 					{
 							displayName: 'This node requires the "cups-client" package to be installed in your n8n environment.',

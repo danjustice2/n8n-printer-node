@@ -5,7 +5,6 @@ import {
 	INodeTypeDescription,
 	ILoadOptionsFunctions,
 	INodeListSearchResult,
-	NodeConnectionType,
 	NodeOperationError,
 } from 'n8n-workflow';
 
@@ -23,8 +22,8 @@ export class Scanner implements INodeType {
 			defaults: {
 					name: 'Scanner',
 			},
-			inputs: [NodeConnectionType.Main],
-			outputs: [NodeConnectionType.Main],
+			inputs: ['main'],
+			outputs: ['main'],
 			properties: [
 					{
 							displayName: 'This node requires the "sane-utils" package (providing scanimage) to be installed in your n8n environment.',

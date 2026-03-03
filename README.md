@@ -18,7 +18,7 @@ n8n has a built-in way to install community packages:
 1. Open your n8n instance and go to **Settings** (bottom-left gear icon)
 2. Click **Community Nodes**
 3. Click **Install a community node**
-4. Enter the package name: `n8n-nodes-printer`
+4. Enter the package name: `n8n-nodes-printer-scanner`
 5. Tick the checkbox to confirm you understand community nodes are not verified by n8n
 6. Click **Install**
 
